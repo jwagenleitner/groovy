@@ -18,6 +18,8 @@
  */
 package groovy.json
 
+import groovy.json.internal.LazyMap
+import groovy.json.internal.LazyValueMap
 import groovy.json.internal.Value
 
 /**
@@ -350,6 +352,25 @@ class JsonSlurperTest extends GroovyTestCase {
         shouldFail(exceptional) { parser.parseText('{"num": 6.92e+}') }
         shouldFail(exceptional) { parser.parseText('{"num": 6+}') }
         shouldFail(exceptional) { parser.parseText('{"num": 6-}') }
+    }
+
+    // GROOVY-7532
+    void testHydrate() {
+        String jsonString = '''
+        { "childOne": {"foo":"bar"},
+          "childTwo": {"bar":"baz", "childThree":{"baz":"alpha"}}
+        }
+        '''
+        def json = parser.parseText(jsonString)
+        def lazyMaps = [LazyMap, LazyValueMap]
+        assert json.getClass() in lazyMaps
+
+        def map = json.hydrate()
+        def nonLazyMaps = [HashMap, LinkedHashMap, TreeMap]
+        assert map.getClass() in nonLazyMaps
+        assert map.childOne.getClass() in nonLazyMaps
+        assert map.childTwo.getClass() in nonLazyMaps
+        assert map.childTwo.childThree.getClass() in nonLazyMaps
     }
 
 }

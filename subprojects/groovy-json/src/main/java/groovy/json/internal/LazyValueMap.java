@@ -232,8 +232,48 @@ public class LazyValueMap extends AbstractMap<String, Object> implements ValueMa
         return len;
     }
 
+    /**
+     * Returns true if the map has been fully hydrated and is backed
+     * by a non-lazy Map implementation.  Otherwise returns false to
+     * indicate that references to the underlying entries are deferred.
+     *
+     * @return true if entries are backed by a non-lazy Map
+     *      implementation, else false
+     */
     public boolean hydrated() {
         return map != null;
+    }
+
+    /**
+     * Hydrates the lazily stored entries and returns a non-lazy
+     * Map implementation.  Modifications to the Map will modify
+     * the original LazyValueMap.
+     *
+     * @return a regular non-lazy Map implementation
+     * @since 2.5.0
+     */
+    public Map<String, Object> hydrate() {
+        Stack<LazyValueMap> stack = new Stack<LazyValueMap>();
+        stack.push(this);
+        while (!stack.isEmpty()) {
+            LazyValueMap lvm = stack.pop();
+            // the call to entrySet will build the map for the top level object
+            for (Map.Entry<String,Object> entry : lvm.entrySet()) {
+                Object value = entry.getValue();
+                lazyChopIfNeeded(value);
+                if (value instanceof LazyValueMap) {
+                    LazyValueMap child = (LazyValueMap) value;
+                    stack.push(child);
+                    if (child.map == null) {
+                        child.buildMap();
+                    }
+                    entry.setValue(child.map);
+                } else {
+                    entry.setValue(value);
+                }
+            }
+        }
+        return map;
     }
 
     public Entry<String, Value>[] items() {
