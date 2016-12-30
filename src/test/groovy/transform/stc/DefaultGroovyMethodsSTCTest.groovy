@@ -123,6 +123,17 @@ class DefaultGroovyMethodsSTCTest extends StaticTypeCheckingTestCase {
         '''
     }
 
+    // GROOVY-8029
+    void testCollectManyClosureReturnCollectionSubtypes() {
+        assertScript '''
+            List<String> getStrings(List<Object> l) {                
+                l.collectMany { [it.toString() + '-foo', it.toString() + '-bar'] } ?: ([] as List<String>)
+            }
+            List<Object> tl = [(Object)'a', (Object)'b']
+            assert getStrings(tl) == ['a-foo', 'a-bar', 'b-foo', 'b-bar']
+        '''
+    }
+
     // GROOVY-7283
     void testArrayMinMaxSupportsOneAndTwoArgClosures() {
         assertScript '''
