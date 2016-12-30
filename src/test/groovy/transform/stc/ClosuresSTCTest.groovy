@@ -291,7 +291,9 @@ class ClosuresSTCTest extends StaticTypeCheckingTestCase {
             void testMessage() {
                 printMessage { int x, int y -> x+y }
             }
-        ''', 'Cannot find matching method'
+        ''',
+        /* Cannot call */
+        'printMessage(groovy.lang.Closure <java.lang.String>) with arguments [groovy.lang.Closure <java.lang.Integer>]'
     }
     
     //GROOVY-6189

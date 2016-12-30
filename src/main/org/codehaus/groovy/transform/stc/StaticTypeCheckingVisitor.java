@@ -3051,24 +3051,22 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
                     }
                 }
             }
-            // now that a method has been chosen, we are allowed to visit the closures
-            if (!callArgsVisited) {
-                MethodNode mn = (MethodNode) call.getNodeMetaData(StaticTypesMarker.DIRECT_METHOD_CALL_TARGET);
-                visitMethodCallArguments(receiver, argumentList, true, mn);
-                // GROOVY-6219
-                if (mn!=null) {
-                    List<Expression> argExpressions = argumentList.getExpressions();
-                    Parameter[] parameters = mn.getParameters();
-                    for (int i = 0; i < argExpressions.size() && i< parameters.length; i++) {
-                          Expression arg = argExpressions.get(i);
-                          ClassNode pType = parameters[i].getType();
-                          ClassNode aType = getType(arg);
-                          if (CLOSURE_TYPE.equals(pType) && CLOSURE_TYPE.equals(aType)) {
-                              if (!isAssignableTo(aType, pType)) {
-                                  addNoMatchingMethodError(receiver, name, getArgumentTypes(argumentList), call);
-                                  call.removeNodeMetaData(StaticTypesMarker.DIRECT_METHOD_CALL_TARGET);
-                              }
-                          }
+            // GROOVY-6219 - now that a method has been chosen, we are allowed to visit the closures
+            MethodNode mn = (MethodNode) call.getNodeMetaData(StaticTypesMarker.DIRECT_METHOD_CALL_TARGET);
+            if (mn!=null) {
+                if (!callArgsVisited) {
+                    visitMethodCallArguments(receiver, argumentList, true, mn);
+                }
+                // If at least one of the parameter types is a Closure then we need to recheck against the arguments
+                // now that they have been visited in order to recheck with Generics
+                Parameter[] parameters = mn.getParameters();
+                for (Parameter param : parameters) {
+                    ClassNode pType = param.getType();
+                    if (CLOSURE_TYPE.equals(pType)) {
+                        if (!typeCheckMethodsWithGenericsOrFail(receiver, getArgumentTypes(argumentList), mn, call)) {
+                            call.removeNodeMetaData(StaticTypesMarker.DIRECT_METHOD_CALL_TARGET);
+                        }
+                        break;
                     }
                 }
             }
