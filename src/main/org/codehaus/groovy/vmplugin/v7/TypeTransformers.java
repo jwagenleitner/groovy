@@ -125,7 +125,7 @@ public class TypeTransformers {
      */
     protected static MethodHandle addTransformer(MethodHandle handle, int pos, Object arg, Class parameter) {
         MethodHandle transformer=null;
-        if (arg instanceof GString) {
+        if (arg instanceof CharSequence) {
             transformer = TO_STRING;
         } else if (arg instanceof Closure) {
             transformer = createSAMTransform(arg, parameter);

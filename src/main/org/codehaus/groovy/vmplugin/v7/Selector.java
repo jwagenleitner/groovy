@@ -755,13 +755,21 @@ public abstract class Selector {
         public void correctCoerce() {
             if (useMetaClass) return;
 
-            Class[] parameters = handle.type().parameterArray();
+            Class<?>[] parameters = handle.type().parameterArray();
             if (currentType!=null) parameters = currentType.parameterArray();
             if (args.length != parameters.length) {
                 throw new GroovyBugError("At this point argument array length and parameter array length should be the same");
             }
             for (int i=0; i<args.length; i++) {
-                if (parameters[i]==Object.class) continue; 
+                Class<?> target = parameters[i];
+
+                // For Array store operations the target type should be the Component
+                // Type, forcing type coersion if necessary.
+                if (i == 2 && selectionBase.isArray()) {
+                    target = selectionBase.getComponentType();
+                }
+
+                if (target==Object.class) continue;
                 Object arg = unwrapIfWrapped(args[i]);
                 // we have to handle here different cases in which we do no
                 // transformations. We depend on our method selection to have
@@ -775,19 +783,19 @@ public abstract class Selector {
                 // GString conversion and the number conversions.
 
                 if (arg==null) continue;
-                Class got = arg.getClass();
+                Class<?> got = arg.getClass();
 
                 // equal class, nothing to do
-                if (got==parameters[i]) continue;
+                if (got==target) continue;
 
-                Class wrappedPara = TypeHelper.getWrapperClass(parameters[i]);
+                Class wrappedPara = TypeHelper.getWrapperClass(target);
                 // equal class with one maybe a primitive, the later explicitCastArguments will solve this case
                 if (wrappedPara==TypeHelper.getWrapperClass(got)) continue;
 
                 // equal in terms of an assignment in Java. That means according to Java widening rules, or
                 // a subclass, interface, superclass relation, this case then handles also 
                 // primitive to primitive conversion. Those case are also solved by explicitCastArguments.
-                if (parameters[i].isAssignableFrom(got)) continue;
+                if (target.isAssignableFrom(got)) continue;
 
                 // to aid explicitCastArguments we convert to the wrapper type to let is only unbox
                 handle = TypeTransformers.addTransformer(handle, i, arg, wrappedPara);
