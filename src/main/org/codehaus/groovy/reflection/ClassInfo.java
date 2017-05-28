@@ -49,19 +49,12 @@ public class ClassInfo implements Finalizable {
     private final LazyClassLoaderRef artifactClassLoader;
     private final LockableObject lock = new LockableObject();
     public final int hash = -1;
-    private final WeakReference<Class<?>> classRef;
 
-    // TODO: should be able to remove the klazz field once 2.5 becomes the mainline release
-    // Gradle has a cleanup mechanism in place to reflectively access this klazz field.
-    // The klazz field is being kept for compatibility so as to not break builds that depend
-    // on versions of Groovy after the field was changed to a WeakReference (classRef).  It
-    // appears that Gradle only performs the cleanup when it detects a groovy version of 2.4.x,
-    // so the klazz field and placeholder Sentinel class can likely be safely removed once
-    // the release version bumps to 2.5 (or beyond).
-    // See:
-    // https://github.com/gradle/gradle/blob/711f64/subprojects/core/src/main/java/org/gradle/api/internal/classloading/LeakyOnJava7GroovySystemLoader.java#L74
-    private static final class Sentinel {}
-    private static final Class<?> klazz = Sentinel.class;
+    // One of the following two fields will be used to store the class reference.
+    // Classes from this classloader or parent loaders will be directly referenced in
+    // order to limit the use of WeakReferences where not needed.
+    private final Class<?> klazz;
+    private final WeakReference<Class<?>> classRef;
 
     private final AtomicInteger version = new AtomicInteger();
 
@@ -89,9 +82,34 @@ public class ClassInfo implements Finalizable {
     private static final GlobalClassSet globalClassSet = new GlobalClassSet();
 
     ClassInfo(Class klazz) {
-        this.classRef = new WeakReference<Class<?>>(klazz);
+        if (canReferenceStrongly(klazz)) {
+            this.klazz = klazz;
+            this.classRef = null;
+        } else {
+            this.classRef = new WeakReference<Class<?>>(klazz);
+            this.klazz = null;
+        }
         cachedClassRef = new LazyCachedClassRef(softBundle, this);
         artifactClassLoader = new LazyClassLoaderRef(softBundle, this);
+    }
+
+    private static boolean canReferenceStrongly(Class<?> referencedClass) {
+        try {
+            ClassLoader referencedLoader = referencedClass.getClassLoader();
+            // can always reference system classes strongly
+            if (referencedLoader == null) {
+                return true;
+            }
+            // can strongly reference if same or a parent
+            for (ClassLoader cl = ClassInfo.class.getClassLoader(); cl != null; cl = cl.getParent()) {
+                if (cl == referencedLoader) {
+                    return true;
+                }
+            }
+        } catch (SecurityException se) {
+            // Safe to ignore, fall back to not using direct references
+        }
+        return false;
     }
 
     public int getVersion() {
@@ -128,7 +146,7 @@ public class ClassInfo implements Finalizable {
      * @return the {@code Class} associated with this {@code ClassInfo}, else {@code null}
      */
     public final Class<?> getTheClass() {
-        return classRef.get();
+        return (klazz != null) ? klazz : classRef.get();
     }
 
     public CachedClass getCachedClass() {
@@ -256,7 +274,7 @@ public class ClassInfo implements Finalizable {
             return answer;
         }
 
-        answer = mccHandle.create(classRef.get(), metaClassRegistry);
+        answer = mccHandle.create(getTheClass(), metaClassRegistry);
         answer.initialize();
 
         if (GroovySystem.isKeepJavaMetaClasses()) {
@@ -420,7 +438,7 @@ public class ClassInfo implements Finalizable {
         }
 
         public CachedClass initValue() {
-            return createCachedClass(info.classRef.get(), info);
+            return createCachedClass(info.getTheClass(), info);
         }
     }
 
@@ -433,7 +451,7 @@ public class ClassInfo implements Finalizable {
         }
 
         public ClassLoaderForClassArtifacts initValue() {
-            return new ClassLoaderForClassArtifacts(info.classRef.get());
+            return new ClassLoaderForClassArtifacts(info.getTheClass());
         }
     }
 
