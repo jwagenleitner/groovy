@@ -1840,6 +1840,28 @@ assert result == 'ok'
         '''
     }
 
+    // GROOVY-8090
+    void testMethodArgumentTypeInferenceWithDifferentPlaceHolderNames() {
+        // Arrays.asList(T), U
+        assertScript '''
+            class CSTest {
+                final <T> Iterable<T> foo(T instance) { Arrays.asList(instance) }
+                final <U> Iterable<U> bar(U instance) { Arrays.asList(instance) }
+            }
+            new CSTest().with {
+                assert foo('A') + bar('B') == ['A', 'B']
+            }
+        '''
+
+        // List<E>, Collections.emptyList<T>
+        assertScript '''
+            int getThing(List<String> it) {
+                return it.size()
+            }
+            assert getThing(Collections.emptyList()) == 0
+        '''
+    }
+
     static class MyList extends LinkedList<String> {}
 
     public static class ClassA<T> {

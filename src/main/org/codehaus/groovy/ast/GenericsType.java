@@ -252,6 +252,9 @@ public class GenericsType extends ASTNode {
                         for (ClassNode upperBound : upperBounds) {
                             String name = upperBound.getGenericsTypes()[0].getName();
                             if (genericsTypes[0].getName().equals(name)) return true;
+                            if (genericsTypes[0].isPlaceholder() && upperBound.getGenericsTypes()[0].isPlaceholder()) {
+                                return true;
+                            }
                         }
                         return false;
                     }
@@ -397,6 +400,16 @@ public class GenericsType extends ASTNode {
                                         }
                                     }
                                 }
+                            }
+                            if (!match) {
+                                /*
+                                 * Check if the class node placeholder redirects back to the
+                                 * classNode generics type. For example:
+                                 *
+                                 *      List<String> -> List<E>
+                                 *      Collections.emptyList() -> List<T> -> List<E>
+                                 */
+                                match = classNodeType == classNodePlaceholders.get(redirectBoundType.getName());
                             }
                         }
                     } else {
