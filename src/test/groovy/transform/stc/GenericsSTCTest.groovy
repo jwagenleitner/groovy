@@ -1840,6 +1840,59 @@ assert result == 'ok'
         '''
     }
 
+    //GROOVY-7753
+    void testTernaryOperatorWithGenericParameterTypeReturn() {
+        assertScript '''
+            List<String> getStrings(boolean flag) {
+                flag ? ['bar'] : Collections.emptyList()
+            }
+            assert getStrings(false) == Collections.EMPTY_LIST
+        '''
+        assertScript '''
+            List<String> getStrings(boolean flag) {
+                flag ? Collections.emptyList() : ['bar']
+            }
+            assert getStrings(true) == Collections.EMPTY_LIST
+        '''
+    }
+
+    void testTernaryOperatorWithGenericParameterTypeAssignment() {
+        assertScript '''
+            boolean flag = false
+            List<String> result = flag ? ['foo'] : Collections.emptyList()
+            assert result == Collections.EMPTY_LIST
+        '''
+        assertScript '''
+            boolean flag = true
+            List<String> result = flag ? Collections.emptyList() : ['foo']
+            assert result == Collections.EMPTY_LIST
+        '''
+    }
+
+    void testTernaryOperatorWithGenericTypeFieldAndPropertyAssignment() {
+        assertScript '''
+            class Foo {
+                static boolean flag() { false }
+                private List<String> f = flag() ? ['field'] : Collections.emptyList()
+                List<String> p = flag() ? ['property'] : Collections.emptyList()
+            }
+            assert new Foo().f == Collections.EMPTY_LIST
+            assert new Foo().p == Collections.EMPTY_LIST
+        '''
+    }
+
+    @NotYetImplemented
+    void testTernaryOperatorWithGenericTypeParameterAssignment() {
+        assertScript '''
+            int getThing(List<String> it) {
+                return it.size()
+            }            
+            boolean flag = true
+            int result = getThing(flag ? ['foo'] : Collections.emptyList())
+            assert result == 1
+        '''
+    }
+
     static class MyList extends LinkedList<String> {}
 
     public static class ClassA<T> {

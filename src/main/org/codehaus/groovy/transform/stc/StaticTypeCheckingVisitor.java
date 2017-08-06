@@ -1553,17 +1553,20 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
     @Override
     public void visitProperty(PropertyNode node) {
         final boolean osc = typeCheckingContext.isInStaticContext;
+        typeCheckingContext.pushEnclosingTargetVariables(node.getField());
         try {
             typeCheckingContext.isInStaticContext = node.isInStaticContext();
             super.visitProperty(node);
         } finally {
             typeCheckingContext.isInStaticContext = osc;
+            typeCheckingContext.popEnclosingTargetVariables();
         }
     }
 
     @Override
     public void visitField(final FieldNode node) {
         final boolean osc = typeCheckingContext.isInStaticContext;
+        typeCheckingContext.pushEnclosingTargetVariables(node);
         try {
             typeCheckingContext.isInStaticContext = node.isInStaticContext();
             super.visitField(node);
@@ -1583,6 +1586,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
             }
         } finally {
             typeCheckingContext.isInStaticContext = osc;
+            typeCheckingContext.popEnclosingTargetVariables();
         }
     }
 
@@ -3395,12 +3399,60 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
             }
         } else {
             // store type information
-            final ClassNode typeOfTrue = getType(trueExpression);
-            final ClassNode typeOfFalse = getType(falseExpression);
+            final ClassNode typeOfTrue = determineTypeFromTernaryContext(trueExpression);
+            final ClassNode typeOfFalse = determineTypeFromTernaryContext(falseExpression);
             resultType = lowestUpperBound(typeOfTrue, typeOfFalse);
         }
         storeType(expression, resultType);
         popAssignmentTracking(oldTracker);
+    }
+
+    private ClassNode determineTypeFromTernaryContext(Expression expression) {
+        ClassNode type = getType(expression);
+        if (hasRHSIncompleteGenericTypeInfo(type)) {
+            /*
+             * In cases where the expression has incomplete generic type
+             * information, the generic types are completed using the
+             * target type. For example:
+             *
+             * List<String> x = .. ? .. : Collections.emptyList() // List<T>
+             *
+             */
+            ClassNode targetType = getTargetTypeFromTernaryContext();
+            if (targetType.isUsingGenerics()) {
+                if (type.isGenericsPlaceHolder()) {
+                    type = targetType;
+                } else {
+                    type = GenericsUtils.parameterizeType(targetType, type.getPlainNodeReference());
+                }
+            }
+        }
+        return type;
+    }
+
+    /**
+     * Returns the target type from the current (Ternary) context.
+     *
+     * @return type target type
+     */
+    private ClassNode getTargetTypeFromTernaryContext() {
+
+        Variable targetVariable = typeCheckingContext.getEnclosingTargetVariable();
+        if (targetVariable != null) {
+            return targetVariable.getType();
+        }
+
+        BinaryExpression enclosingBinaryExpression = typeCheckingContext.getEnclosingBinaryExpression();
+        if (enclosingBinaryExpression != null) {
+            return enclosingBinaryExpression.getLeftExpression().getType();
+        }
+
+        MethodNode enclosingMethod = typeCheckingContext.getEnclosingMethod();
+        if (enclosingMethod != null) {
+            return enclosingMethod.getReturnType();
+        }
+
+        throw new GroovyBugError("Unable to determine target type from context");
     }
 
     @Override

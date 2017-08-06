@@ -21,6 +21,7 @@ package org.codehaus.groovy.transform.stc;
 import org.codehaus.groovy.ast.ClassNode;
 import org.codehaus.groovy.ast.MethodNode;
 import org.codehaus.groovy.ast.Parameter;
+import org.codehaus.groovy.ast.Variable;
 import org.codehaus.groovy.ast.expr.*;
 import org.codehaus.groovy.control.CompilationUnit;
 import org.codehaus.groovy.control.ErrorCollector;
@@ -80,6 +81,10 @@ public class TypeCheckingContext {
     // inference
     protected final LinkedList<BinaryExpression> enclosingBinaryExpressions = new LinkedList<BinaryExpression>();
 
+    // stores the current variable and can be used for determining the target type of assignments when
+    // evaluating expressions with incomplete generic type information
+    private final LinkedList<Variable> enclosingTargetVariables = new LinkedList<Variable>();
+
     protected final StaticTypeCheckingVisitor visitor;
 
     protected CompilationUnit compilationUnit;
@@ -121,6 +126,37 @@ public class TypeCheckingContext {
      */
     public List<BinaryExpression> getEnclosingBinaryExpressionStack() {
         return Collections.unmodifiableList(enclosingBinaryExpressions);
+    }
+
+    /**
+     * Pushes a variable onto the stack.
+     *
+     * @param var the variable to be pushed
+     */
+    void pushEnclosingTargetVariables(Variable var) {
+        enclosingTargetVariables.addFirst(var);
+    }
+
+    /**
+     * Pops a variable from the stack.
+     *
+     * @return the popped variable
+     */
+    Variable popEnclosingTargetVariables() {
+        return enclosingTargetVariables.removeFirst();
+    }
+
+    /**
+     * Returns the variable which is on the top of the stack, or null
+     * if there's no such element.
+     *
+     * @return the variable on top of the stack, or null if no such element.
+     */
+    Variable getEnclosingTargetVariable() {
+        if (enclosingTargetVariables.isEmpty()) {
+            return null;
+        }
+        return enclosingTargetVariables.getFirst();
     }
 
     /**
