@@ -98,4 +98,24 @@ class AutoImplementTransformTest extends GroovyShellTestCase {
         '''
     }
 
+    void testGroovy8270() {
+        assertScript '''
+            interface Foo<T extends Number> {
+                void bar(T arg)
+            }
+
+            @groovy.transform.AutoImplement
+            class MyClass implements Foo<Long> {}
+            
+            new MyClass().bar(2)
+        '''
+
+        assertScript '''
+            @groovy.transform.AutoImplement
+            class MyClass implements Comparator<String> {}
+            
+            assert !new MyClass().compare('foo', 'foo')
+        '''
+    }
+
 }

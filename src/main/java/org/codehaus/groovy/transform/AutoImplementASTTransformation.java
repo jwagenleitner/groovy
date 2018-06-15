@@ -32,7 +32,7 @@ import org.codehaus.groovy.ast.expr.ClosureExpression;
 import org.codehaus.groovy.ast.expr.Expression;
 import org.codehaus.groovy.ast.stmt.BlockStatement;
 import org.codehaus.groovy.ast.stmt.EmptyStatement;
-import org.codehaus.groovy.ast.tools.ParameterUtils;
+import org.codehaus.groovy.ast.tools.WideningCategories;
 import org.codehaus.groovy.control.CompilePhase;
 import org.codehaus.groovy.control.SourceUnit;
 import org.objectweb.asm.Opcodes;
@@ -159,11 +159,25 @@ public class AutoImplementASTTransformation extends AbstractASTTransformation {
     private static MethodNode getDeclaredMethodCorrected(Map<String, ClassNode> genericsSpec, MethodNode origMethod, ClassNode correctedClass) {
         for (MethodNode nameMatch : correctedClass.getDeclaredMethods(origMethod.getName())) {
             MethodNode correctedMethod = correctToGenericsSpec(genericsSpec, nameMatch);
-            if (ParameterUtils.parametersEqual(correctedMethod.getParameters(), origMethod.getParameters())) {
+            if (parametersEquivalent(correctedMethod.getParameters(), origMethod.getParameters())) {
                 return correctedMethod;
             }
         }
         return null;
+    }
+
+    private static boolean parametersEquivalent(Parameter[] actual, Parameter[] target) {
+        if (actual.length != target.length) {
+            return false;
+        }
+        for (int i = 0; i < actual.length; i++) {
+            ClassNode actualType = actual[i].getType();
+            ClassNode targetType = target[i].getType();
+            if (!WideningCategories.implementsInterfaceOrSubclassOf(actualType, targetType)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private BlockStatement methodBody(ClassNode exception, String message, ClosureExpression code, ClassNode returnType) {
