@@ -96,4 +96,54 @@ class GroovyScriptEngineTest extends GroovyTestCase {
         assert counts['Script1'] == 1
         assert counts['Foo'] == 1
     }
+
+    @Test
+    void testStaticReloading_GROOVY_8656() {
+        def reloadingTest = temporaryFolder.newFile('ReloadingTest.groovy')
+        reloadingTest << '''
+            class Greeter {
+                static String sayHello() {
+                    String greet = StaticFun.world
+                    greet
+                }
+            }
+            new Greeter()
+        '''
+        def staticFun = temporaryFolder.newFile('StaticFun.groovy')
+        staticFun << '''
+            class StaticFun {
+                static String world="hello " + StaticMess.mess
+            }
+        '''
+        def staticMess = temporaryFolder.newFile('StaticMess.groovy')
+        staticMess << '''
+            class StaticMess {
+                public static String mess = "world"
+            }
+        '''
+        GroovyScriptEngine scriptEngine = new GroovyScriptEngine([temporaryFolder.root.toURI().toURL()] as URL[])
+        scriptEngine.config.minimumRecompilationInterval = 10
+        Binding binding = new Binding()
+
+        def result = scriptEngine.run('ReloadingTest.groovy', binding)
+        assert result.sayHello() == 'hello world'
+
+        sleep 20
+        staticFun.write '''
+            class StaticFun {
+                static String world="goodbye " + StaticMess.mess
+            }
+        '''
+        result = scriptEngine.run('ReloadingTest.groovy', binding)
+        assert result.sayHello() == 'goodbye world'
+
+        sleep 20
+        staticMess.write '''
+            class StaticMess {
+                public static String mess = "universe"
+            }
+        '''
+        result = scriptEngine.run('ReloadingTest.groovy', binding)
+        assert result.sayHello() == 'goodbye universe'
+    }
 }
